@@ -3,27 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Viczka Bingo Generator</title>
+  <title>Sklepowe Bingo</title>
+  <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
-<div id="dynamic-background"></div>
-<div id="app">
-  <div id="welcome-screen" class="container">
-    <h1>Viczka Bingo</h1>
-    <button id="generate-btn" class="btn-primary">Generuj Tablicę</button>
-  </div>
-
-  <div id="board-screen" class="container hidden">
-    <div class="header-row">
-      <h2>Bingo</h2>
-      <button id="back-btn" class="btn-secondary">Wróć</button>
-    </div>
-    <div id="bingo-grid" class="grid-5x5"></div>
-  </div>
+<!-- Rozmyte animowane tło -->
+<div class="background-blobs">
+  <div class="blob blob1"></div>
+  <div class="blob blob2"></div>
+  <div class="blob blob3"></div>
 </div>
 
-<img src="/yoshiidol.png" class="corner-logo" alt="Logo" />
-
+<div class="container">
+  <h1>Gazetki Bingo</h1>
+  <div class="controls">
+    <button id="theme-toggle">Tryb Jasny ☀️</button>
+    <button id="new-board-btn">Generuj nową tablicę</button>
+  </div>
+  <div id="bingo-board" class="board"></div>
+</div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

@@ -1,73 +1,69 @@
-import './style.css'
-
 import confetti from 'canvas-confetti';
 
-// Bingo contents
-const bingoWords: string[] = [
-
+const bingoItems: string[] = [
+    "1+1 przyprawy", "2+2 woda", "3+1 soki", "6+6 mleko", "12+12",
+    "1+1 kawa", "4+4 piwo", "3+3 milka", "2+1 na masło", "2+2 na mleko",
+    "drugi 60% taniej na ciastka", "drugi 50% taniej na czekolada",
+    "drugi 70% taniej dezodoranty", "drugi za 1zł pasta do zębów",
+    "drugi za 1grosz", "trzeci za 1grosz chemia", "2+2 dzik",
+    "1+1 znicze", "1+1 awokado", "z aplikacją taniej 30% na owoce",
+    "wszystkie kosmetyki do twarzy Nivea drugi za 1zł"
 ];
 
-// Main elements
-const welcomeScreen = document.querySelector<HTMLDivElement>('#welcome-screen')!;
-const boardScreen = document.querySelector<HTMLDivElement>('#board-screen')!;
-const generateBtn = document.querySelector<HTMLButtonElement>('#generate-btn')!;
-const backBtn = document.querySelector<HTMLButtonElement>('#back-btn')!;
-const gridContainer = document.querySelector<HTMLDivElement>('#bingo-grid')!;
-
-// Cat logo and sound
-const catLogo = document.querySelector<HTMLImageElement>('.corner-logo');
-const catSound = new Audio('meow.mp3');
-const catSoundRare = new Audio('meow_rare.mp3');
-
-// Click sound
-const clickSound = new Audio('click.mp3');
-clickSound.volume = 0.3;
-
-// Shuffling function
-function shuffleArray(array: string[]): string[] {
-    const shuffled = [...array]; // Mirror the array before shuffling
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
+interface BingoCell {
+    text: string;
+    active: boolean;
 }
 
-let checkedState: boolean[] = []; // Checked boxes list
-let completedLines = new Set<string>(); // Compleated lines set
+const STORAGE_KEY = 'bingo_board_state';
+const THEME_KEY = 'bingo_theme_state';
+const clickSound = new Audio('click.mp3');
 
-const winningCombinations = [
-    // Rows
-    [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14], [15, 16, 17, 18, 19], [20, 21, 22, 23, 24],
-    // Columns
-    [0, 5, 10, 15, 20], [1, 6, 11, 16, 21], [2, 7, 12, 17, 22], [3, 8, 13, 18, 23], [4, 9, 14, 19, 24],
-    // Diagonals
-    [0, 6, 12, 18, 24], [4, 8, 12, 16, 20]
-];
+// --- LOGIKA MOTYWU (THEME) ---
+function initTheme() {
+    const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeButtonText(savedTheme);
 
-function fireConfetti() {
-    const duration = 1500;
+    document.getElementById('theme-toggle')?.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem(THEME_KEY, newTheme);
+        updateThemeButtonText(newTheme);
+    });
+}
+
+function updateThemeButtonText(theme: string) {
+    const btn = document.getElementById('theme-toggle');
+    if (btn) {
+        btn.innerText = theme === 'dark' ? 'Tryb Jasny ☀️' : 'Tryb Ciemny 🌙';
+    }
+}
+
+// --- EFEKTY BINGO ---
+function triggerConfetti() {
+    const duration = 2.5 * 500;
     const end = Date.now() + duration;
 
+    // Kolory konfetti dopasowane do motywu (złoty, platynowy, biały)
+    const colors = ['#d4af37', '#f0f0f0', '#b8901f'];
+
     (function frame() {
-        // Left cannon
         confetti({
-            particleCount: 2,
+            particleCount: 5,
             angle: 60,
             spread: 55,
-            origin: { x: 0, y: 1 },
-            colors: ['#7d73ba', '#ffffff', '#ff0000'],
-            startVelocity: 60
+            origin: { x: 0 },
+            colors: colors
         });
-
-        // Right cannon
         confetti({
-            particleCount: 2,
+            particleCount: 5,
             angle: 120,
             spread: 55,
-            origin: { x: 1, y: 1 },
-            colors: ['#7d73ba', '#ffffff', '#ff0000'],
-            startVelocity: 60
+            origin: { x: 1 },
+            colors: colors
         });
 
         if (Date.now() < end) {
@@ -76,140 +72,125 @@ function fireConfetti() {
     }());
 }
 
-function checkBingo() {
-    let newWin = false;
+function countBingos(state: BingoCell[]): number {
+    let bingos = 0;
 
-    // Check each combination
-    winningCombinations.forEach((combo, index) => {
-        const lineId = `line-${index}`;
-
-        if (!completedLines.has(lineId)) {
-            // Check each tile in line
-            const isFull = combo.every(cellIndex => checkedState[cellIndex]);
-
-            if (isFull) {
-                completedLines.add(lineId); // Record line in set
-                newWin = true;
-            }
+    // Sprawdzanie wierszy
+    for (let r = 0; r < 5; r++) {
+        let rowWin = true;
+        for (let c = 0; c < 5; c++) {
+            if (!state[r * 5 + c].active) rowWin = false;
         }
-    });
-
-    if (newWin) {
-        fireConfetti();
+        if (rowWin) bingos++;
     }
+
+    // Sprawdzanie kolumn
+    for (let c = 0; c < 5; c++) {
+        let colWin = true;
+        for (let r = 0; r < 5; r++) {
+            if (!state[r * 5 + c].active) colWin = false;
+        }
+        if (colWin) bingos++;
+    }
+
+    // Sprawdzanie przekątnych
+    let diag1Win = true;
+    let diag2Win = true;
+    for (let i = 0; i < 5; i++) {
+        if (!state[i * 5 + i].active) diag1Win = false;
+        if (!state[i * 5 + (4 - i)].active) diag2Win = false;
+    }
+    if (diag1Win) bingos++;
+    if (diag2Win) bingos++;
+
+    return bingos;
 }
 
-// Generating the board
-function generateBoard() {
-    // Clear previous board
-    gridContainer.innerHTML = '';
-    checkedState = new Array(25).fill(false);
-    completedLines.clear();
+// --- LOGIKA BINGO ---
+function shuffleArray<T>(array: T[]): T[] {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
 
-    // Shuffle and take only the first 25 words
-    const words = shuffleArray(bingoWords).slice(0, 25);
+function generateNewBoard(): BingoCell[] {
+    const shuffledItems = shuffleArray(bingoItems);
+    const neededExtras = 25 - shuffledItems.length;
+    const extraItems = shuffleArray(bingoItems).slice(0, neededExtras);
 
-    // Create the tiles
-    words.forEach((word, index) => {
-        const cell = document.createElement('div');
-        cell.className = 'bingo-cell';
-        cell.innerText = word;
+    const fullBoardStrings = shuffleArray([...shuffledItems, ...extraItems]);
+    return fullBoardStrings.map(text => ({ text, active: false }));
+}
 
-        // Crossing functionality
-        cell.addEventListener('click', () => {
+function saveState(state: BingoCell[]) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadState(): BingoCell[] | null {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+        try { return JSON.parse(saved); }
+        catch (e) { return null; }
+    }
+    return null;
+}
+
+function renderBoard() {
+    const boardContainer = document.getElementById('bingo-board');
+    if (!boardContainer) return;
+
+    boardContainer.innerHTML = '';
+    let currentState = loadState();
+
+    if (!currentState) {
+        currentState = generateNewBoard();
+        saveState(currentState);
+    }
+
+    let currentBingoCount = countBingos(currentState);
+
+    currentState.forEach((cell, index) => {
+        const cellEl = document.createElement('div');
+        cellEl.className = `cell ${cell.active ? 'active' : ''}`;
+        cellEl.innerText = cell.text;
+
+        cellEl.addEventListener('click', () => {
+            // Odtwarzanie dźwięku
+            clickSound.currentTime = 0;
             clickSound.play().catch(() => {});
 
-            cell.classList.toggle('checked');
+            cell.active = !cell.active;
+            cellEl.classList.toggle('active');
 
-            // Switching checked status after click
-            checkedState[index] = !checkedState[index];
+            const stateToUpdate = loadState();
+            if(stateToUpdate) {
+                stateToUpdate[index].active = cell.active;
+                saveState(stateToUpdate);
 
-            // Check for bingo
-            if (checkedState[index]) {
-                checkBingo();
+                // Sprawdzanie czy wpadło nowe bingo
+                const newBingoCount = countBingos(stateToUpdate);
+                if (newBingoCount > currentBingoCount) {
+                    triggerConfetti();
+                }
+                currentBingoCount = newBingoCount;
             }
         });
 
-        gridContainer.appendChild(cell);
-    });
-
-    // Switching the view
-    welcomeScreen.classList.add('hidden');
-    boardScreen.classList.remove('hidden');
-}
-
-// Button handling
-generateBtn.addEventListener('click', () => {
-    generateBoard();
-    clickSound.play().catch(() => {});
-});
-
-backBtn.addEventListener('click', () => {
-    boardScreen.classList.add('hidden');
-    welcomeScreen.classList.remove('hidden');
-    clickSound.play().catch(() => {});
-});
-
-catSound.playbackRate = 1.5;
-
-if (catLogo) {
-    catLogo.addEventListener('click', () => {
-        catSound.currentTime = 0; // Reset the sound if clicked again
-        catSoundRare.currentTime = 0;
-
-        let rdm = Math.random() * 100;
-
-        // Playing the sound
-        if (rdm < 5){
-            catSoundRare.play().catch(e => console.error("ERROR: Sound problem", e));
-        } else {
-            catSound.play().catch(e => console.error("ERROR: Sound problem", e));
-        }
+        boardContainer.appendChild(cellEl);
     });
 }
 
-function generateBackground() {
-    const container = document.getElementById('dynamic-background');
-    if (!container) return;
-
-    container.innerHTML = ''; // Clearing the blobs
-
-    // Color palette
-    const colors = [
-        '#484982',
-        '#AAB1F7'
-    ];
-
-    const blobCount = 5;
-
-    for (let i = 0; i < blobCount; i++) {
-        const blob = document.createElement('div');
-        blob.classList.add('gradient-blob');
-
-        // Random color from palette
-        blob.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-
-        // Random blob size
-        const size = Math.floor(Math.random() * 40) + 30;
-        blob.style.width = `${size}vw`;
-        blob.style.height = `${size}vw`;
-
-        // Random position
-        blob.style.left = `${Math.floor(Math.random() * 100) - 20}%`;
-        blob.style.top = `${Math.floor(Math.random() * 100) - 20}%`;
-
-        // Random blob animation duration for desync between blobs
-        const duration = Math.floor(Math.random() * 30) + 25;
-
-        // Random blob animation delay
-        const delay = Math.floor(Math.random() * -50);
-
-        // Injecting those variables into CSS
-        blob.style.setProperty('--duration', `${duration}s`);
-        blob.style.setProperty('--delay', `${delay}s`);
-
-        container.appendChild(blob);
+document.getElementById('new-board-btn')?.addEventListener('click', () => {
+    if(confirm('Czy na pewno chcesz wygenerować nową tablicę? Twój dotychczasowy postęp zostanie usunięty.')) {
+        const newState = generateNewBoard();
+        saveState(newState);
+        renderBoard();
     }
-}
+});
 
-generateBackground();
+// Start
+initTheme();
+renderBoard();
