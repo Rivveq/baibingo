@@ -181,3 +181,46 @@ button:hover {
   .cell { font-size: 11px; min-height: 70px; }
   .controls { flex-direction: column; }
 }
+
+/* --- Grafiki w rogach --- */
+.corner-img {
+  position: fixed;
+  z-index: 10;
+  max-width: 360px;
+  width: 20vw; /* responsywność - zmniejsza się na małych ekranach */
+  min-width: 90px;
+  pointer-events: none;
+}
+
+/* Statyczna grafika (wyglądająca zza lewej krawędzi) */
+.static-img {
+  top: 5vh;
+  left: 0;
+  transform: translateX(-20%) rotate(90deg);
+  filter: drop-shadow(4px 0 6px rgba(0,0,0,0.3));
+}
+
+/* Interaktywna (prawy dolny róg) */
+.interactive-img {
+  bottom: 20px;
+  right: 20px;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.2s ease;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+}
+
+.interactive-img:hover {
+  transform: scale(1.1) rotate(-5deg);
+  filter: drop-shadow(0 8px 12px var(--accent-color));
+}
+
+.interactive-img:active {
+  transform: scale(0.95) rotate(2deg);
+}
+
+@media (max-width: 600px) {
+  .corner-img { max-width: 100px; }
+  .static-img { top: 10px; left: 10px; }
+  .interactive-img { bottom: 10px; right: 10px; }
+}

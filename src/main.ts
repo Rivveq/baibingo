@@ -55,14 +55,14 @@ function triggerConfetti() {
             particleCount: 5,
             angle: 60,
             spread: 55,
-            origin: { x: 0 },
+            origin: { x: 0, y: 1 },
             colors: colors
         });
         confetti({
             particleCount: 5,
             angle: 120,
             spread: 55,
-            origin: { x: 1 },
+            origin: { x: 1, y: 1 },
             colors: colors
         });
 
@@ -194,3 +194,24 @@ document.getElementById('new-board-btn')?.addEventListener('click', () => {
 // Start
 initTheme();
 renderBoard();
+
+// --- LOGIKA INTERAKTYWNEJ GRAFIKI I DŹWIĘKÓW ---
+
+const interactiveImg = document.getElementById('interactive-img');
+
+const boingSound = new Audio('sound.mp3');
+const catSoundRare = new Audio('sound_rare.mp3');
+
+interactiveImg?.addEventListener('click', () => {
+    boingSound.currentTime = 0; // Reset the sound if clicked again
+    catSoundRare.currentTime = 0;
+
+    let rdm = Math.random() * 100;
+
+    // Playing the sound
+    if (rdm < 5){
+        catSoundRare.play().catch(e => console.error("ERROR: Sound problem", e));
+    } else {
+        boingSound.play().catch(e => console.error("ERROR: Sound problem", e));
+    }
+});
