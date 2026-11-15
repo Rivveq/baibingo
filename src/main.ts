@@ -173,12 +173,9 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 function generateNewBoard(): BingoCell[] {
-    const shuffledItems = shuffleArray(bingoItems);
-    const neededExtras = 25 - shuffledItems.length;
-    const extraItems = shuffleArray(bingoItems).slice(0, neededExtras);
-
-    const fullBoardStrings = shuffleArray([...shuffledItems, ...extraItems]);
-    return fullBoardStrings.map(text => ({ text, active: false }));
+  // Tasujemy całą dostępną pulę i bierzemy dokładnie 25 unikalnych haseł na planszę 5x5
+  const selectedItems = shuffleArray(bingoItems).slice(0, 25);
+  return selectedItems.map(text => ({ text, active: false }));
 }
 
 function saveState(state: BingoCell[]) {
