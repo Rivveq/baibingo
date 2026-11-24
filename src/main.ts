@@ -88,6 +88,12 @@ interface BingoCell {
     active: boolean;
 }
 
+interface WinningLine {
+  startIdx: number;
+  endIdx: number;
+  id: string;
+}
+
 const STORAGE_KEY = 'bingo_board_state';
 const THEME_KEY = 'bingo_theme_state';
 const clickSound = new Audio('click.mp3');
@@ -145,38 +151,96 @@ function triggerConfetti() {
     }());
 }
 
-function countBingos(state: BingoCell[]): number {
-    let bingos = 0;
+// Zwraca listę wszystkich aktualnie ułożonych linii (wiersze, kolumny, przekątne)
+function getWinningLines(state: BingoCell[]): WinningLine[] {
+  const lines: WinningLine[] = [];
 
-    // Sprawdzanie wierszy
-    for (let r = 0; r < 5; r++) {
-        let rowWin = true;
-        for (let c = 0; c < 5; c++) {
-            if (!state[r * 5 + c].active) rowWin = false;
-        }
-        if (rowWin) bingos++;
-    }
-
-    // Sprawdzanie kolumn
+  // Wiersze
+  for (let r = 0; r < 5; r++) {
+    let win = true;
     for (let c = 0; c < 5; c++) {
-        let colWin = true;
-        for (let r = 0; r < 5; r++) {
-            if (!state[r * 5 + c].active) colWin = false;
-        }
-        if (colWin) bingos++;
+      if (!state[r * 5 + c].active) win = false;
+    }
+    if (win) lines.push({ startIdx: r * 5, endIdx: r * 5 + 4, id: `row-${r}` });
+  }
+
+  // Kolumny
+  for (let c = 0; c < 5; c++) {
+    let win = true;
+    for (let r = 0; r < 5; r++) {
+      if (!state[r * 5 + c].active) win = false;
+    }
+    if (win) lines.push({ startIdx: c, endIdx: 20 + c, id: `col-${c}` });
+  }
+
+  // Przekątna główna (lewy górny -> prawy dolny)
+  let diag1 = true;
+  for (let i = 0; i < 5; i++) {
+    if (!state[i * 5 + i].active) diag1 = false;
+  }
+  if (diag1) lines.push({ startIdx: 0, endIdx: 24, id: 'diag-1' });
+
+  // Przekątna druga (prawy górny -> lewy dolny)
+  let diag2 = true;
+  for (let i = 0; i < 5; i++) {
+    if (!state[i * 5 + (4 - i)].active) diag2 = false;
+  }
+  if (diag2) lines.push({ startIdx: 4, endIdx: 20, id: 'diag-2' });
+
+  return lines;
+}
+
+// Renderuje linie SVG na podstawie aktualnych wymiarów kafelków
+function drawWinningLines(winningLines: WinningLine[], animate = true) {
+  const svg = document.getElementById('bingo-lines');
+  const boardContainer = document.getElementById('bingo-board');
+  if (!svg || !boardContainer) return;
+
+  const cells = boardContainer.querySelectorAll<HTMLElement>('.cell');
+  if (cells.length < 25) return;
+
+  // Zapamiętujemy linie, które już istniały, aby nie powtarzać animacji rysowania przy zmianie rozmiaru okna
+  const existingIds = new Set(
+    Array.from(svg.querySelectorAll('line')).map(el => el.dataset.lineId)
+  );
+
+  svg.innerHTML = '';
+
+  winningLines.forEach(line => {
+    const startCell = cells[line.startIdx];
+    const endCell = cells[line.endIdx];
+
+    // Środki kafelków względem kontenera planszy
+    const x1 = startCell.offsetLeft + startCell.offsetWidth / 2;
+    const y1 = startCell.offsetTop + startCell.offsetHeight / 2;
+    const x2 = endCell.offsetLeft + endCell.offsetWidth / 2;
+    const y2 = endCell.offsetTop + endCell.offsetHeight / 2;
+
+    // Delikatne wydłużenie linii poza środki skrajnych kafelków (o 25% promienia kafelka)
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.hypot(dx, dy);
+    const overhang = Math.min(startCell.offsetWidth, startCell.offsetHeight) * 0.28;
+
+    const extX = length > 0 ? (dx / length) * overhang : 0;
+    const extY = length > 0 ? (dy / length) * overhang : 0;
+
+    const svgLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    svgLine.setAttribute('x1', (x1 - extX).toString());
+    svgLine.setAttribute('y1', (y1 - extY).toString());
+    svgLine.setAttribute('x2', (x2 + extX).toString());
+    svgLine.setAttribute('y2', (y2 + extY).toString());
+    svgLine.setAttribute('class', 'bingo-strike-line');
+    svgLine.dataset.lineId = line.id;
+
+    // Jeśli linia była już narysowana wcześniej (np. tylko zmieniamy rozmiar okna), wyłączamy ponowną animację
+    if (!animate || existingIds.has(line.id)) {
+      svgLine.style.animation = 'none';
+      svgLine.style.strokeDashoffset = '0';
     }
 
-    // Sprawdzanie przekątnych
-    let diag1Win = true;
-    let diag2Win = true;
-    for (let i = 0; i < 5; i++) {
-        if (!state[i * 5 + i].active) diag1Win = false;
-        if (!state[i * 5 + (4 - i)].active) diag2Win = false;
-    }
-    if (diag1Win) bingos++;
-    if (diag2Win) bingos++;
-
-    return bingos;
+    svg.appendChild(svgLine);
+  });
 }
 
 // --- LOGIKA BINGO ---
@@ -208,49 +272,67 @@ function loadState(): BingoCell[] | null {
     return null;
 }
 
+let activeWinningLines: WinningLine[] = [];
+
 function renderBoard() {
-    const boardContainer = document.getElementById('bingo-board');
-    if (!boardContainer) return;
+  const boardContainer = document.getElementById('bingo-board');
+  if (!boardContainer) return;
+  
+  boardContainer.innerHTML = '';
+  let currentState = loadState();
+  
+  if (!currentState) {
+    currentState = generateNewBoard();
+    saveState(currentState);
+  }
 
-    boardContainer.innerHTML = '';
-    let currentState = loadState();
+  activeWinningLines = getWinningLines(currentState);
+  let currentBingoCount = activeWinningLines.length;
 
-    if (!currentState) {
-        currentState = generateNewBoard();
-        saveState(currentState);
-    }
+  currentState.forEach((cell, index) => {
+    const cellEl = document.createElement('div');
+    cellEl.className = `cell ${cell.active ? 'active' : ''}`;
+    cellEl.innerText = cell.text;
+    
+    cellEl.addEventListener('click', () => {
+      clickSound.currentTime = 0;
+      clickSound.play().catch(() => {});
 
-    let currentBingoCount = countBingos(currentState);
+      cell.active = !cell.active;
+      cellEl.classList.toggle('active');
+      
+      const stateToUpdate = loadState();
+      if (stateToUpdate) {
+        stateToUpdate[index].active = cell.active;
+        saveState(stateToUpdate);
+        
+        activeWinningLines = getWinningLines(stateToUpdate);
+        const newBingoCount = activeWinningLines.length;
 
-    currentState.forEach((cell, index) => {
-        const cellEl = document.createElement('div');
-        cellEl.className = `cell ${cell.active ? 'active' : ''}`;
-        cellEl.innerText = cell.text;
+        if (newBingoCount > currentBingoCount) {
+          triggerConfetti();
+        }
+        currentBingoCount = newBingoCount;
 
-        cellEl.addEventListener('click', () => {
-            // Odtwarzanie dźwięku
-            clickSound.currentTime = 0;
-            clickSound.play().catch(() => {});
-
-            cell.active = !cell.active;
-            cellEl.classList.toggle('active');
-
-            const stateToUpdate = loadState();
-            if(stateToUpdate) {
-                stateToUpdate[index].active = cell.active;
-                saveState(stateToUpdate);
-
-                // Sprawdzanie czy wpadło nowe bingo
-                const newBingoCount = countBingos(stateToUpdate);
-                if (newBingoCount > currentBingoCount) {
-                    triggerConfetti();
-                }
-                currentBingoCount = newBingoCount;
-            }
-        });
-
-        boardContainer.appendChild(cellEl);
+        // Przerysowanie linii (jeśli odznaczono pole, linia natychmiast zniknie)
+        drawWinningLines(activeWinningLines, true);
+      }
     });
+    
+    boardContainer.appendChild(cellEl);
+  });
+
+  // Narysowanie zapisanych linii zaraz po wyrenderowaniu kafelków (bez animacji przy starcie strony)
+  requestAnimationFrame(() => drawWinningLines(activeWinningLines, false));
+}
+
+// Automatyczne dopasowanie współrzędnych linii przy zmianie rozmiaru okna lub orientacji ekranu
+const boardElement = document.getElementById('bingo-board');
+if (boardElement) {
+  const resizeObserver = new ResizeObserver(() => {
+    drawWinningLines(activeWinningLines, false);
+  });
+  resizeObserver.observe(boardElement);
 }
 
 document.getElementById('new-board-btn')?.addEventListener('click', () => {

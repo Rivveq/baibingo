@@ -224,3 +224,65 @@ button:hover {
   .static-img { top: 10px; left: 10px; }
   .interactive-img { bottom: 10px; right: 10px; }
 }
+
+/* Kontener łączący planszę i linie SVG */
+.board-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+/* Warstwa SVG z liniami przekreśleń */
+.bingo-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Kliknięcia przelatują przez linię prosto do kafelków */
+  z-index: 5;
+  overflow: visible;
+}
+
+.bingo-strike-line {
+  stroke: var(--text-color);
+  stroke-width: 6px;
+  stroke-linecap: round;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.6));
+  transition: stroke 0.3s ease;
+  
+  /* Animacja rysowania linii */
+  stroke-dasharray: 1500;
+  stroke-dashoffset: 1500;
+  animation: drawLine 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+[data-theme="light"] .bingo-strike-line {
+  stroke: #1a1a1a;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.9));
+}
+
+@keyframes drawLine {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .board {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .cell {
+    font-size: 9px;
+    padding: 4px;
+    min-height: 60px;
+    word-break: break-word;
+  }
+  .bingo-strike-line {
+    stroke-width: 4px;
+  }
+  .controls {
+    flex-direction: column;
+  }
+}
